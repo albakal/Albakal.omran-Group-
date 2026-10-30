@@ -437,6 +437,19 @@ private fun MerchantOrdersTab(viewModel: AlbakalViewModel) {
     }
   }
 
+  val newOrders = remember(myOrders) { myOrders.filter { it.orderStatus == "NEW" } }
+  val activeOrders = remember(myOrders) { myOrders.filter { it.orderStatus in listOf("PREPARING", "SHIPPED") } }
+  val pastOrders = remember(myOrders) { myOrders.filter { it.orderStatus in listOf("DELIVERED", "CANCELLED") } }
+
+  var orderSubTab by remember { mutableIntStateOf(if (newOrders.isNotEmpty()) 0 else if (activeOrders.isNotEmpty()) 1 else 0) }
+
+  // Auto-switch to SubTab 0 (الطلبات الجديدة الواردة في صفحة مستقلة) whenever alert sounds or new orders exist
+  LaunchedEffect(hasActiveAlarm, newOrders.size) {
+    if (hasActiveAlarm || newOrders.isNotEmpty()) {
+      orderSubTab = 0
+    }
+  }
+
   val context = LocalContext.current
   val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as? PowerManager }
   val isIgnoringBattery = remember {
@@ -445,82 +458,210 @@ private fun MerchantOrdersTab(viewModel: AlbakalViewModel) {
     } else true
   }
 
-  if (myOrders.isEmpty()) {
-    Box(
-      modifier = Modifier.fillMaxSize(),
-      contentAlignment = Alignment.Center
+  Column(modifier = Modifier.fillMaxSize()) {
+    // Segmented Sub-Tabs for Orders
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 14.dp, vertical = 8.dp),
+      horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-      Text(text = "لا توجد طلبات واردة حالياً", color = Color.Gray)
-    }
-    return
-  }
-
-  LazyColumn(
-    modifier = Modifier
-      .fillMaxSize()
-      .padding(horizontal = 14.dp),
-    contentPadding = PaddingValues(vertical = 14.dp),
-    verticalArrangement = Arrangement.spacedBy(12.dp)
-  ) {
-    if (!isIgnoringBattery) {
-      item {
-        Card(
-          modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(12.dp),
-          colors = CardDefaults.cardColors(containerColor = AmberSecondary.copy(alpha = 0.15f))
+      // Tab 0: New Incoming Orders (Dedicated Independent Page)
+      Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (orderSubTab == 0) Color(0xFFD32F2F) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (orderSubTab == 0) Color(0xFFB71C1C) else Color.LightGray),
+        modifier = Modifier
+          .weight(1.1f)
+          .clickable { orderSubTab = 0 }
+          .testTag("merchant_subtab_new_orders")
+      ) {
+        Column(
+          modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+          horizontalAlignment = Alignment.CenterHorizontally
         ) {
-          Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-              Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = AmberSecondary)
-              Spacer(modifier = Modifier.width(8.dp))
-              Text(
-                text = "تفعيل إيقاظ الشاشة والتنبيه الصوتي المستمر",
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                color = Color(0xFFE65100)
-              )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
+          Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-              text = "لضمان إيقاظ شاشة هاتفك وسماع السارينة فوراً عند وصول أي طلب جديد حتى أثناء قفل الهاتف أو الخمول، يرجى تفعيل إذن عمل التطبيق في الخلفية.",
+              text = "🚨 طلبات جديدة",
               fontSize = 11.sp,
-              color = Color.DarkGray
+              fontWeight = FontWeight.Bold,
+              color = if (orderSubTab == 0) Color.White else Color.DarkGray
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-              onClick = {
-                try {
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                      data = Uri.parse("package:${context.packageName}")
-                    }
-                    context.startActivity(intent)
-                  }
-                } catch (_: Exception) {
-                  try {
-                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
-                  } catch (_: Exception) {}
-                }
-              },
-              colors = ButtonDefaults.buttonColors(containerColor = AmberSecondary),
-              shape = RoundedCornerShape(8.dp),
-              modifier = Modifier.fillMaxWidth()
-            ) {
-              Text("منح إذن استمرار عمل التطبيق في الخلفية وإيقاظ الشاشة", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            if (newOrders.isNotEmpty()) {
+              Spacer(modifier = Modifier.width(4.dp))
+              Surface(
+                shape = CircleShape,
+                color = if (orderSubTab == 0) Color.White else Color(0xFFD32F2F)
+              ) {
+                Text(
+                  text = "${newOrders.size}",
+                  fontSize = 10.sp,
+                  fontWeight = FontWeight.Bold,
+                  color = if (orderSubTab == 0) Color(0xFFD32F2F) else Color.White,
+                  modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                )
+              }
             }
           }
         }
       }
+
+      // Tab 1: In Progress
+      Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (orderSubTab == 1) GreenPrimary else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (orderSubTab == 1) GreenDark else Color.LightGray),
+        modifier = Modifier
+          .weight(1f)
+          .clickable { orderSubTab = 1 }
+          .testTag("merchant_subtab_active_orders")
+      ) {
+        Column(
+          modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+          horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+          Text(
+            text = "📦 قيد التنفيذ (${activeOrders.size})",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (orderSubTab == 1) Color.White else Color.DarkGray
+          )
+        }
+      }
+
+      // Tab 2: Past Orders (Delivered & Cancelled)
+      Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (orderSubTab == 2) Color(0xFF455A64) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, if (orderSubTab == 2) Color(0xFF37474F) else Color.LightGray),
+        modifier = Modifier
+          .weight(1f)
+          .clickable { orderSubTab = 2 }
+          .testTag("merchant_subtab_past_orders")
+      ) {
+        Column(
+          modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+          horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+          Text(
+            text = "📜 السجل (${pastOrders.size})",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (orderSubTab == 2) Color.White else Color.DarkGray
+          )
+        }
+      }
     }
 
-    items(myOrders) { order ->
-      MerchantOrderCard(
-        order = order,
-        viewModel = viewModel,
-        onOpenPreparation = { selectedOrderForPreparation = order },
-        onOpenShipping = { selectedOrderIdForShipping = order.id },
-        onConfirmDelivered = { orderToConfirmDelivered = order }
-      )
+    val displayedOrders = when (orderSubTab) {
+      0 -> newOrders
+      1 -> activeOrders
+      else -> pastOrders
+    }
+
+    if (displayedOrders.isEmpty()) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(24.dp),
+        contentAlignment = Alignment.Center
+      ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          when (orderSubTab) {
+            0 -> {
+              Text("🔔", fontSize = 40.sp)
+              Spacer(modifier = Modifier.height(8.dp))
+              Text("لا توجد طلبات جديدة واردة حالياً", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+              Spacer(modifier = Modifier.height(4.dp))
+              Text(
+                "عند وصول أي طلب جديد أثناء التنبيه، سيظهر هنا فوراً في هذه الصفحة المستقلة ليتسنى لك رؤيته جيداً.",
+                fontSize = 11.sp,
+                color = Color.Gray,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+              )
+            }
+            1 -> {
+              Text("📦", fontSize = 40.sp)
+              Spacer(modifier = Modifier.height(8.dp))
+              Text("لا توجد طلبات قيد التجهيز أو الشحن حالياً", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+            else -> {
+              Text("📜", fontSize = 40.sp)
+              Spacer(modifier = Modifier.height(8.dp))
+              Text("لا توجد طلبات سابقة في السجل حتى الآن", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+          }
+        }
+      }
+    } else {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
+        if (!isIgnoringBattery && orderSubTab == 0) {
+          item {
+            Card(
+              modifier = Modifier.fillMaxWidth(),
+              shape = RoundedCornerShape(12.dp),
+              colors = CardDefaults.cardColors(containerColor = AmberSecondary.copy(alpha = 0.15f))
+            ) {
+              Column(modifier = Modifier.padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                  Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = AmberSecondary)
+                  Spacer(modifier = Modifier.width(8.dp))
+                  Text(
+                    text = "تفعيل إيقاظ الشاشة والتنبيه الصوتي المستمر",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color(0xFFE65100)
+                  )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                  text = "لضمان إيقاظ شاشة هاتفك وسماع السارينة فوراً عند وصول أي طلب جديد حتى أثناء قفل الهاتف أو الخمول، يرجى تفعيل إذن عمل التطبيق في الخلفية.",
+                  fontSize = 11.sp,
+                  color = Color.DarkGray
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                  onClick = {
+                    try {
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                          data = Uri.parse("package:${context.packageName}")
+                        }
+                        context.startActivity(intent)
+                      }
+                    } catch (_: Exception) {
+                      try {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                      } catch (_: Exception) {}
+                    }
+                  },
+                  colors = ButtonDefaults.buttonColors(containerColor = AmberSecondary),
+                  shape = RoundedCornerShape(8.dp),
+                  modifier = Modifier.fillMaxWidth()
+                ) {
+                  Text("منح إذن استمرار عمل التطبيق في الخلفية وإيقاظ الشاشة", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+              }
+            }
+          }
+        }
+
+        items(displayedOrders) { order ->
+          MerchantOrderCard(
+            order = order,
+            viewModel = viewModel,
+            onOpenPreparation = { selectedOrderForPreparation = order },
+            onOpenShipping = { selectedOrderIdForShipping = order.id },
+            onConfirmDelivered = { orderToConfirmDelivered = order }
+          )
+        }
+      }
     }
   }
 
