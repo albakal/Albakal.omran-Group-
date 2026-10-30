@@ -400,22 +400,27 @@ fun RegisterScreen(viewModel: AlbakalViewModel) {
   var password by remember { mutableStateOf("") }
   var confirmPassword by remember { mutableStateOf("") }
 
-  // Address
+  // Address - Strictly populated from admin-defined areas in database/Firestore
   val areas by viewModel.governoratesWithDistricts.collectAsState()
   val distinctGovs = remember(areas) {
-    areas.map { it.governorate }.distinct().ifEmpty { listOf("الإسكندرية", "القاهرة", "الجيزة") }
+    areas.map { it.governorate.trim() }.filter { it.isNotBlank() }.distinct()
   }
 
-  var selectedGov by remember { mutableStateOf("الإسكندرية") }
+  var selectedGov by remember(distinctGovs) {
+    mutableStateOf(distinctGovs.firstOrNull() ?: "")
+  }
   var govExpanded by remember { mutableStateOf(false) }
 
   val districtsForGov = remember(areas, selectedGov) {
-    areas.filter { it.governorate == selectedGov }.map { it.district }.distinct().ifEmpty {
-      listOf("وسط البلد", "الدقي", "المعادي", "مدينة نصر", "سموحة", "ميامي", "سيدي بشر")
-    }
+    areas.filter { it.governorate.trim() == selectedGov.trim() }
+      .map { it.district.trim() }
+      .filter { it.isNotBlank() }
+      .distinct()
   }
 
-  var district by remember { mutableStateOf(districtsForGov.firstOrNull() ?: "سموحة") }
+  var district by remember(districtsForGov) {
+    mutableStateOf(districtsForGov.firstOrNull() ?: "")
+  }
   var districtExpanded by remember { mutableStateOf(false) }
   var street by remember { mutableStateOf("") }
   var apartment by remember { mutableStateOf("") }
@@ -605,74 +610,91 @@ fun RegisterScreen(viewModel: AlbakalViewModel) {
           )
           Spacer(modifier = Modifier.height(12.dp))
 
-          // Governorate Dropdown
-          ExposedDropdownMenuBox(
-            expanded = govExpanded,
-            onExpandedChange = { govExpanded = it },
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            OutlinedTextField(
-              value = selectedGov,
-              onValueChange = {},
-              readOnly = true,
-              label = { Text("المحافظة") },
-              trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = govExpanded) },
-              modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
-                .fillMaxWidth()
-                .testTag("reg_gov_dropdown")
-            )
-            ExposedDropdownMenu(
-              expanded = govExpanded,
-              onDismissRequest = { govExpanded = false }
+          if (distinctGovs.isEmpty()) {
+            Card(
+              colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+              shape = RoundedCornerShape(8.dp),
+              modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             ) {
-              distinctGovs.forEach { gov ->
-                DropdownMenuItem(
-                  text = { Text(gov) },
-                  onClick = {
-                    selectedGov = gov
-                    govExpanded = false
-                    val newDistricts = areas.filter { it.governorate == gov }.map { it.district }.distinct().ifEmpty {
-                      listOf("وسط البلد", "الدقي", "المعادي", "مدينة نصر", "سموحة", "ميامي", "سيدي بشر")
+              Text(
+                text = "⚠️ لم يتم إدراج محافظات ومناطق من لوحة التحكم حتى الآن. يرجى مراجعة إدارة التطبيق.",
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(10.dp)
+              )
+            }
+          } else {
+            // Governorate Dropdown (ReadOnly, strictly from admin list)
+            ExposedDropdownMenuBox(
+              expanded = govExpanded,
+              onExpandedChange = { govExpanded = it },
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              OutlinedTextField(
+                value = selectedGov,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("المحافظة * (محددة من الإدارة)") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = govExpanded) },
+                modifier = Modifier
+                  .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                  .fillMaxWidth()
+                  .testTag("reg_gov_dropdown")
+              )
+              ExposedDropdownMenu(
+                expanded = govExpanded,
+                onDismissRequest = { govExpanded = false }
+              ) {
+                distinctGovs.forEach { gov ->
+                  DropdownMenuItem(
+                    text = { Text(gov) },
+                    onClick = {
+                      selectedGov = gov
+                      govExpanded = false
+                      val newDistricts = areas.filter { it.governorate.trim() == gov.trim() }
+                        .map { it.district.trim() }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                      district = newDistricts.firstOrNull() ?: ""
                     }
-                    district = newDistricts.firstOrNull() ?: ""
-                  }
-                )
+                  )
+                }
               }
             }
-          }
 
-          Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-          // District / Section Dropdown (Admin-defined)
-          ExposedDropdownMenuBox(
-            expanded = districtExpanded,
-            onExpandedChange = { districtExpanded = it },
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            OutlinedTextField(
-              value = district,
-              onValueChange = { district = it },
-              label = { Text("القسم / الحي / المنطقة * (المحددة من الإدارة)") },
-              leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = GreenPrimary) },
-              trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = districtExpanded) },
-              modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryEditable, enabled = true)
-                .fillMaxWidth()
-                .testTag("reg_district_dropdown")
-            )
-            ExposedDropdownMenu(
+            // District / Section Dropdown (ReadOnly, strictly from admin list)
+            ExposedDropdownMenuBox(
               expanded = districtExpanded,
-              onDismissRequest = { districtExpanded = false }
+              onExpandedChange = { districtExpanded = it },
+              modifier = Modifier.fillMaxWidth()
             ) {
-              districtsForGov.forEach { distItem ->
-                DropdownMenuItem(
-                  text = { Text(distItem) },
-                  onClick = {
-                    district = distItem
-                    districtExpanded = false
-                  }
-                )
+              OutlinedTextField(
+                value = district,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("القسم / الحي / المنطقة * (المحددة من الإدارة)") },
+                leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, tint = GreenPrimary) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = districtExpanded) },
+                modifier = Modifier
+                  .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                  .fillMaxWidth()
+                  .testTag("reg_district_dropdown")
+              )
+              ExposedDropdownMenu(
+                expanded = districtExpanded,
+                onDismissRequest = { districtExpanded = false }
+              ) {
+                districtsForGov.forEach { distItem ->
+                  DropdownMenuItem(
+                    text = { Text(distItem) },
+                    onClick = {
+                      district = distItem
+                      districtExpanded = false
+                    }
+                  )
+                }
               }
             }
           }
@@ -860,6 +882,8 @@ fun RegisterScreen(viewModel: AlbakalViewModel) {
             viewModel.showMessage("يرجى إكمال جميع الحقول الأساسية")
           } else if (password != confirmPassword) {
             viewModel.showMessage("كلمة المرور وتأكيدها غير متطابقين")
+          } else if (selectedGov.isBlank() || district.isBlank() || !distinctGovs.contains(selectedGov) || !districtsForGov.contains(district)) {
+            viewModel.showMessage("يرجى اختيار المحافظة والمنطقة حصرياً من القوائم المعتمدة من الإدارة")
           } else {
             val (startH, endH, displayLabel) = if (selectedRole == "MERCHANT") {
               if (merchantHoursType == "CUSTOM") {

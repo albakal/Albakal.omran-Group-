@@ -570,6 +570,26 @@ class AlbakalViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
+  fun updateUserLocation(
+    userId: String,
+    governorate: String,
+    district: String,
+    onSuccess: () -> Unit = {}
+  ) {
+    viewModelScope.launch {
+      val user = repository.getUserById(userId) ?: _currentUser.value ?: return@launch
+      val updated = user.copy(
+        governorate = governorate.trim(),
+        district = district.trim()
+      )
+      repository.updateUser(updated)
+      if (_currentUser.value?.id == userId) {
+        _currentUser.value = updated
+      }
+      showMessage("تم تحديث المحافظة والمنطقة بنجاح")
+      onSuccess()
+    }
+  }
 
   // Admin Actions
   fun approveUser(userId: String) {

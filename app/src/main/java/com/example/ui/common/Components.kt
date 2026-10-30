@@ -25,8 +25,20 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.data.model.GovernorateAreaEntity
+import com.example.data.model.UserEntity
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -594,4 +606,192 @@ fun AnnouncementsAndUpdatesView(
     }
   }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MandatoryAreaSelectionDialog(
+  user: UserEntity,
+  areas: List<GovernorateAreaEntity>,
+  onSave: (governorate: String, district: String) -> Unit
+) {
+  val distinctGovs = remember(areas) {
+    areas.map { it.governorate.trim() }.filter { it.isNotBlank() }.distinct()
+  }
+
+  var selectedGov by remember(distinctGovs, user) {
+    val initial = if (distinctGovs.contains(user.governorate.trim())) user.governorate.trim() else distinctGovs.firstOrNull() ?: ""
+    mutableStateOf(initial)
+  }
+  var govExpanded by remember { mutableStateOf(false) }
+
+  val districtsForGov = remember(areas, selectedGov) {
+    areas.filter { it.governorate.trim() == selectedGov.trim() }
+      .map { it.district.trim() }
+      .filter { it.isNotBlank() }
+      .distinct()
+  }
+
+  var selectedDist by remember(districtsForGov, user) {
+    val initial = if (districtsForGov.contains(user.district.trim())) user.district.trim() else districtsForGov.firstOrNull() ?: ""
+    mutableStateOf(initial)
+  }
+  var distExpanded by remember { mutableStateOf(false) }
+
+  androidx.compose.ui.window.Dialog(
+    onDismissRequest = { /* unskippable / mandatory */ },
+    properties = androidx.compose.ui.window.DialogProperties(
+      dismissOnBackPress = false,
+      dismissOnClickOutside = false
+    )
+  ) {
+    Card(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(12.dp)
+        .testTag("mandatory_area_dialog"),
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+      elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+      Column(
+        modifier = Modifier.padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+      ) {
+        Surface(
+          shape = CircleShape,
+          color = GreenPrimary.copy(alpha = 0.15f),
+          modifier = Modifier.size(56.dp)
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(32.dp))
+          }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Text(
+          text = "تحديد المحافظة والمنطقة (إلزامي)",
+          fontWeight = FontWeight.Bold,
+          fontSize = 16.sp,
+          color = GreenDark,
+          textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+          text = "وفقاً لتطبيق شرط المركزية في تطبيق البقال، يلزم اختيار محافظتك ومنطقتك من القوائم المعتمدة من الإدارة لتتمكن من متابعة الاستخدام والتسوق.",
+          fontSize = 12.sp,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          textAlign = TextAlign.Center,
+          lineHeight = 18.sp
+        )
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        if (distinctGovs.isEmpty()) {
+          Text(
+            text = "⚠️ لم يتم تفعيل أو إدراج محافظات ومناطق من لوحة التحكم حتى الآن. يرجى مراجعة إدارة التطبيق.",
+            color = MaterialTheme.colorScheme.error,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
+          )
+        } else {
+          // Governorate Dropdown (ReadOnly, only from admin list)
+          ExposedDropdownMenuBox(
+            expanded = govExpanded,
+            onExpandedChange = { govExpanded = it },
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            OutlinedTextField(
+              value = selectedGov,
+              onValueChange = {},
+              readOnly = true,
+              label = { Text("المحافظة") },
+              trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = govExpanded) },
+              modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                .fillMaxWidth()
+                .testTag("mandatory_gov_dropdown")
+            )
+            ExposedDropdownMenu(
+              expanded = govExpanded,
+              onDismissRequest = { govExpanded = false }
+            ) {
+              distinctGovs.forEach { gov ->
+                DropdownMenuItem(
+                  text = { Text(gov) },
+                  onClick = {
+                    selectedGov = gov
+                    govExpanded = false
+                    val newDistricts = areas.filter { it.governorate.trim() == gov.trim() }
+                      .map { it.district.trim() }
+                      .filter { it.isNotBlank() }
+                      .distinct()
+                    selectedDist = newDistricts.firstOrNull() ?: ""
+                  }
+                )
+              }
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          // District Dropdown (ReadOnly, only from admin list for selected gov)
+          ExposedDropdownMenuBox(
+            expanded = distExpanded,
+            onExpandedChange = { distExpanded = it },
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            OutlinedTextField(
+              value = selectedDist,
+              onValueChange = {},
+              readOnly = true,
+              label = { Text("القسم / الحي / المنطقة") },
+              trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = distExpanded) },
+              modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                .fillMaxWidth()
+                .testTag("mandatory_district_dropdown")
+            )
+            ExposedDropdownMenu(
+              expanded = distExpanded,
+              onDismissRequest = { distExpanded = false }
+            ) {
+              districtsForGov.forEach { distItem ->
+                DropdownMenuItem(
+                  text = { Text(distItem) },
+                  onClick = {
+                    selectedDist = distItem
+                    distExpanded = false
+                  }
+                )
+              }
+            }
+          }
+
+          Spacer(modifier = Modifier.height(20.dp))
+
+          Button(
+            onClick = {
+              if (selectedGov.isNotBlank() && selectedDist.isNotBlank()) {
+                onSave(selectedGov, selectedDist)
+              }
+            },
+            enabled = selectedGov.isNotBlank() && selectedDist.isNotBlank(),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(48.dp)
+              .testTag("save_mandatory_area_btn")
+          ) {
+            Text("حفظ وتأكيد المنطقة", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+          }
+        }
+      }
+    }
+  }
+}
+
 

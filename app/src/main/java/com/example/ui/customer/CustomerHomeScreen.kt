@@ -110,7 +110,9 @@ import com.example.ui.theme.GreenDark
 import com.example.ui.theme.GreenPrimary
 
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
 import com.example.ui.common.AnnouncementsAndUpdatesView
+import com.example.ui.common.MandatoryAreaSelectionDialog
 
 @Composable
 fun CustomerHomeScreen(viewModel: AlbakalViewModel) {
@@ -118,8 +120,24 @@ fun CustomerHomeScreen(viewModel: AlbakalViewModel) {
   val cartItems by viewModel.cart.collectAsState()
   val appSettings by viewModel.appSettings.collectAsState()
   val latestAnnouncement by viewModel.latestAnnouncement.collectAsState()
+  val areas by viewModel.governoratesWithDistricts.collectAsState()
   var lastHandledAnnouncementId by remember { mutableStateOf<String?>(null) }
   var selectedTab by remember { mutableIntStateOf(0) }
+
+  val userNeedsAreaSelection = remember(currentUser, areas) {
+    val u = currentUser
+    u != null && (u.governorate.isBlank() || u.district.isBlank() || (areas.isNotEmpty() && areas.none { it.district.trim().equals(u.district.trim(), ignoreCase = true) }))
+  }
+
+  if (userNeedsAreaSelection && currentUser != null) {
+    MandatoryAreaSelectionDialog(
+      user = currentUser!!,
+      areas = areas,
+      onSave = { gov, dist ->
+        viewModel.updateUserLocation(currentUser!!.id, gov, dist)
+      }
+    )
+  }
 
   LaunchedEffect(latestAnnouncement) {
     val ann = latestAnnouncement
@@ -256,6 +274,7 @@ private fun StoreTab(viewModel: AlbakalViewModel) {
   val categories by viewModel.categories.collectAsState()
   val ads by viewModel.sponsoredAds.collectAsState()
   val allUsers by viewModel.allUsers.collectAsState()
+  val currentUser by viewModel.currentUser.collectAsState()
 
   val merchantsMap = remember(allUsers) {
     allUsers.filter { it.role == "MERCHANT" }.associateBy { it.id }
@@ -265,8 +284,22 @@ private fun StoreTab(viewModel: AlbakalViewModel) {
   var searchQuery by remember { mutableStateOf("") }
   var selectedProductForQuantity by remember { mutableStateOf<ProductEntity?>(null) }
 
-  val filteredProducts = remember(products, selectedCategory, searchQuery) {
+  val filteredProducts = remember(products, selectedCategory, searchQuery, merchantsMap, currentUser) {
+    val custGov = currentUser?.governorate?.trim().orEmpty()
+    val custDist = currentUser?.district?.trim().orEmpty()
+
     products.filter { p ->
+      // Centralization requirement: Only show products from merchants in customer's exact district (and governorate)
+      val merchant = merchantsMap[p.merchantId]
+      val merchantGov = merchant?.governorate?.trim().orEmpty()
+      val merchantDist = merchant?.district?.trim().orEmpty()
+
+      val matchesArea = custDist.isNotBlank() &&
+          merchantDist.equals(custDist, ignoreCase = true) &&
+          (custGov.isBlank() || merchantGov.isBlank() || merchantGov.equals(custGov, ignoreCase = true))
+
+      if (!matchesArea) return@filter false
+
       val matchesCat = when (selectedCategory) {
         "الكل" -> true
         "🔥 عروض البقال" -> p.isAlbakalOffer || p.isOffer || (p.discountPrice != null && p.discountPrice < p.price)
@@ -280,7 +313,6 @@ private fun StoreTab(viewModel: AlbakalViewModel) {
   }
 
   val promoCodes by viewModel.promoCodes.collectAsState()
-  val currentUser by viewModel.currentUser.collectAsState()
   val context = androidx.compose.ui.platform.LocalContext.current
 
   val activePromo = remember(promoCodes, currentUser) {
@@ -294,6 +326,33 @@ private fun StoreTab(viewModel: AlbakalViewModel) {
     modifier = Modifier.fillMaxSize(),
     contentPadding = PaddingValues(bottom = 20.dp)
   ) {
+    // 0. Location centralization badge
+    item {
+      Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = GreenPrimary.copy(alpha = 0.08f)),
+        border = BorderStroke(1.dp, GreenPrimary.copy(alpha = 0.25f)),
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 14.dp, vertical = 6.dp)
+          .testTag("store_centralized_area_banner")
+      ) {
+        Row(
+          modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Icon(Icons.Default.LocationOn, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(18.dp))
+          Spacer(modifier = Modifier.width(6.dp))
+          Text(
+            text = "نطاق التوصيل المركزي: ${currentUser?.governorate ?: ""} - ${currentUser?.district ?: ""} (متاجر منطقتك حصرياً)",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = GreenPrimary
+          )
+        }
+      }
+    }
+
     // 1. Shipping Promo Code Announcement Bubble
     if (activePromo != null) {
       item {
@@ -537,14 +596,27 @@ private fun StoreTab(viewModel: AlbakalViewModel) {
         Box(
           modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp),
+            .padding(vertical = 40.dp, horizontal = 20.dp),
           contentAlignment = Alignment.Center
         ) {
-          Text(
-            text = "لا توجد منتجات مطابقة في هذا القسم حالياً",
-            color = Color.Gray,
-            style = MaterialTheme.typography.bodyMedium
-          )
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("🏪", fontSize = 42.sp)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+              text = "لا توجد منتجات متاحة حالياً في منطقة (${currentUser?.district ?: "منطقتك"})",
+              fontWeight = FontWeight.Bold,
+              fontSize = 15.sp,
+              color = Color.DarkGray
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+              text = "وفقاً لشرط المركزية، يتم عرض المنتجات فقط من بقالات ومتاجر نفس منطقتك لضمان جودة وسرعة التوصيل.",
+              fontSize = 12.sp,
+              color = Color.Gray,
+              textAlign = TextAlign.Center,
+              lineHeight = 18.sp
+            )
+          }
         }
       }
     } else {

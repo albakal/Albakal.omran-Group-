@@ -114,6 +114,7 @@ import java.util.UUID
 
 import androidx.compose.material.icons.filled.Info
 import com.example.ui.common.AnnouncementsAndUpdatesView
+import com.example.ui.common.MandatoryAreaSelectionDialog
 
 @Composable
 fun MerchantHomeScreen(viewModel: AlbakalViewModel) {
@@ -121,11 +122,27 @@ fun MerchantHomeScreen(viewModel: AlbakalViewModel) {
   val hasActiveAlarm by viewModel.hasActiveAlarm.collectAsState()
   val appSettings by viewModel.appSettings.collectAsState()
   val latestAnnouncement by viewModel.latestAnnouncement.collectAsState()
+  val areas by viewModel.governoratesWithDistricts.collectAsState()
   var lastHandledAnnouncementId by remember { mutableStateOf<String?>(null) }
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var showHonorDialog by remember { mutableStateOf(true) }
   var showAddProductDialog by remember { mutableStateOf(false) }
+
+  val userNeedsAreaSelection = remember(currentUser, areas) {
+    val u = currentUser
+    u != null && (u.governorate.isBlank() || u.district.isBlank() || (areas.isNotEmpty() && areas.none { it.district.trim().equals(u.district.trim(), ignoreCase = true) }))
+  }
+
+  if (userNeedsAreaSelection && currentUser != null) {
+    MandatoryAreaSelectionDialog(
+      user = currentUser!!,
+      areas = areas,
+      onSave = { gov, dist ->
+        viewModel.updateUserLocation(currentUser!!.id, gov, dist)
+      }
+    )
+  }
 
   LaunchedEffect(latestAnnouncement) {
     val ann = latestAnnouncement
