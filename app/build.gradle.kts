@@ -70,6 +70,24 @@ android {
   }
 }
 
+tasks.register("copyReleaseArtifacts") {
+  doLast {
+    val bundleFile = layout.buildDirectory.file("outputs/bundle/release/app-release.aab").get().asFile
+    if (bundleFile.exists()) {
+      val bundleDir = file("${rootDir}/bundle")
+      bundleDir.mkdirs()
+      bundleFile.copyTo(file("${bundleDir}/albakal-release.aab"), overwrite = true)
+      val buildOutputsDir = file("${rootDir}/.build-outputs")
+      buildOutputsDir.mkdirs()
+      bundleFile.copyTo(file("${buildOutputsDir}/albakal-release.aab"), overwrite = true)
+    }
+  }
+}
+
+tasks.named("bundleRelease") {
+  finalizedBy("copyReleaseArtifacts")
+}
+
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {
