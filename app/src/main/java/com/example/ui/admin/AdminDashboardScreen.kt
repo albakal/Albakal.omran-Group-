@@ -53,11 +53,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.HeadsetMic
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.LocationCity
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.People
+import com.example.ui.common.openWhatsApp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
@@ -146,10 +147,11 @@ fun AdminDashboardScreen(viewModel: AlbakalViewModel) {
   // Tabs
   var selectedTab by remember { mutableIntStateOf(0) }
 
-  val tabTitles = remember(isSuperAdmin, perms) {
+  val tabTitles = remember(isSuperAdmin, perms, appSettings.isCaptainsFleetInterfaceActive) {
     val list = mutableListOf<String>()
     if (isSuperAdmin || perms.canManageCustomers) list.add("العملاء")
     if (isSuperAdmin || perms.canManageMerchants) list.add("التجار")
+    if (appSettings.isCaptainsFleetInterfaceActive) list.add("الكباتن")
     if (isSuperAdmin) list.add("المشرفين")
     if (isSuperAdmin || perms.canManageProducts) list.add("المنتجات والأقسام")
     if (isSuperAdmin || perms.canManageOrders) list.add("الطلبات")
@@ -210,6 +212,7 @@ fun AdminDashboardScreen(viewModel: AlbakalViewModel) {
         when (currentTabTitle) {
           "العملاء" -> AdminCustomersSection(viewModel)
           "التجار" -> AdminMerchantsSection(viewModel, canBan = isSuperAdmin || perms.canBanMerchants, canDebts = isSuperAdmin || perms.canManageDebts)
+          "الكباتن" -> AdminCaptainsSection(viewModel)
           "المشرفين" -> AdminSupervisorsSection(viewModel)
           "المنتجات والأقسام" -> AdminProductsSection(viewModel)
           "الطلبات" -> AdminOrdersSection(viewModel)
@@ -4223,6 +4226,361 @@ private fun AdminLogoAndAnnouncementsSection(viewModel: AlbakalViewModel) {
         }
       }
     }
+  }
+}
+
+// 14. CAPTAINS MANAGEMENT
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AdminCaptainsSection(viewModel: AlbakalViewModel) {
+  val allUsers by viewModel.allUsers.collectAsState()
+  val areas by viewModel.governoratesWithDistricts.collectAsState()
+  val appSettings by viewModel.appSettings.collectAsState()
+  val context = androidx.compose.ui.platform.LocalContext.current
+
+  val captains = remember(allUsers) { allUsers.filter { it.role == "CAPTAIN" } }
+  var captainToDelete by remember { mutableStateOf<UserEntity?>(null) }
+  var showAddCaptainDialog by remember { mutableStateOf(false) }
+
+  LazyColumn(
+    modifier = Modifier.fillMaxSize(),
+    verticalArrangement = Arrangement.spacedBy(10.dp)
+  ) {
+    item {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Column {
+          Text(
+            text = "إدارة الكباتن والمناديب (${captains.size})",
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = GreenDark
+          )
+          Text(
+            text = "يتم تسجيل وإضافة الكباتن حصرياً من قبل الإدارة وإرسال بياناتهم عبر واتساب",
+            fontSize = 11.sp,
+            color = Color.Gray
+          )
+        }
+        Button(
+          onClick = { showAddCaptainDialog = true },
+          colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
+          shape = RoundedCornerShape(8.dp)
+        ) {
+          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("إضافة كابتن", fontSize = 11.sp)
+        }
+      }
+    }
+
+    if (captains.isEmpty()) {
+      item {
+        Card(
+          modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+          ) {
+            Text("🛵", fontSize = 40.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("لا يوجد كباتن مسجلين حالياً", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("اضغط على 'إضافة كابتن' لإدراج مندوب توصيل وتحديد منطقته وإرسال بيانات الدخول له.", fontSize = 11.sp, color = Color.Gray)
+          }
+        }
+      }
+    }
+
+    items(captains) { captain ->
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+      ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                modifier = Modifier
+                  .size(38.dp)
+                  .clip(CircleShape)
+                  .background(GreenPrimary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+              ) {
+                Text("🛵", fontSize = 18.sp)
+              }
+              Spacer(modifier = Modifier.width(10.dp))
+              Column {
+                Text(text = captain.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(text = "📞 ${captain.phone}", fontSize = 12.sp, color = Color.DarkGray)
+              }
+            }
+
+            Surface(shape = RoundedCornerShape(6.dp), color = Color(0xFFE8F5E9)) {
+              Text(
+                text = "متاح للتوصيل",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = GreenDark,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(8.dp))
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+              text = "نطاق التغطية: ${captain.governorate} - ${captain.district}",
+              fontSize = 12.sp,
+              color = Color.DarkGray
+            )
+          }
+
+          Spacer(modifier = Modifier.height(10.dp))
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            Button(
+              onClick = {
+                val credsMsg = """
+👋 مرحباً كابتن ${captain.name}،
+تم تسجيلك واعتمادك ككابتن ومندوب توصيل رسمي في تطبيق *البقال* بنطاق:
+📍 ${captain.governorate} - ${captain.district}
+
+🔑 *بيانات تسجيل الدخول لتطبيق البقال:*
+• رقم الهاتف: ${captain.phone}
+• كلمة المرور: ${captain.password}
+
+📲 *رابط تحميل التطبيق المباشر (APK):*
+${appSettings.apkDownloadUrl}
+                """.trimIndent()
+                openWhatsApp(context, captain.phone, credsMsg)
+              },
+              colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+              shape = RoundedCornerShape(8.dp),
+              modifier = Modifier.weight(1f)
+            ) {
+              Text("إرسال بيانات الدخول واتساب", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+
+            OutlinedButton(
+              onClick = { captainToDelete = captain },
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+              shape = RoundedCornerShape(8.dp)
+            ) {
+              Icon(Icons.Default.Delete, contentDescription = "حذف الكابتن", modifier = Modifier.size(16.dp))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Delete Confirmation Dialog
+  if (captainToDelete != null) {
+    val cap = captainToDelete!!
+    AlertDialog(
+      onDismissRequest = { captainToDelete = null },
+      title = { Text("تأكيد حذف الكابتن", fontWeight = FontWeight.Bold) },
+      text = { Text("هل أنت متأكد من حذف الكابتن (${cap.name} - ${cap.phone}) نهائياً من النظام؟") },
+      confirmButton = {
+        Button(
+          onClick = {
+            viewModel.deleteCaptain(cap.id)
+            captainToDelete = null
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+        ) {
+          Text("تأكيد الحذف")
+        }
+      },
+      dismissButton = {
+        OutlinedButton(onClick = { captainToDelete = null }) { Text("إلغاء") }
+      }
+    )
+  }
+
+  // Add Captain Dialog
+  if (showAddCaptainDialog) {
+    var capName by remember { mutableStateOf("") }
+    var capPhone by remember { mutableStateOf("") }
+    var capPassword by remember { mutableStateOf("123456") }
+
+    val distinctGovs = remember(areas) {
+      areas.map { it.governorate.trim() }.filter { it.isNotBlank() }.distinct()
+    }
+    var capGov by remember(distinctGovs) { mutableStateOf(distinctGovs.firstOrNull() ?: "") }
+    var govExpanded by remember { mutableStateOf(false) }
+
+    val districtsForGov = remember(areas, capGov) {
+      areas.filter { it.governorate.trim() == capGov.trim() }.map { it.district.trim() }.filter { it.isNotBlank() }.distinct()
+    }
+    var capDist by remember(districtsForGov) { mutableStateOf(districtsForGov.firstOrNull() ?: "") }
+    var distExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+      onDismissRequest = { showAddCaptainDialog = false },
+      title = { Text("إضافة كابتن توصيل جديد", fontWeight = FontWeight.Bold, color = GreenPrimary) },
+      text = {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState()),
+          verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          Text("أدخل بيانات الكابتن لتسجيله وتحديد منطقته وإرسال بيانات الدخول له:", fontSize = 12.sp)
+
+          OutlinedTextField(
+            value = capName,
+            onValueChange = { capName = it },
+            label = { Text("اسم الكابتن *") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+          )
+
+          OutlinedTextField(
+            value = capPhone,
+            onValueChange = { capPhone = it },
+            label = { Text("رقم هاتف الكابتن *") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+          )
+
+          OutlinedTextField(
+            value = capPassword,
+            onValueChange = { capPassword = it },
+            label = { Text("كلمة المرور *") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+          )
+
+          if (distinctGovs.isNotEmpty()) {
+            // Governorate Dropdown
+            ExposedDropdownMenuBox(
+              expanded = govExpanded,
+              onExpandedChange = { govExpanded = it },
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              OutlinedTextField(
+                value = capGov,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("المحافظة *") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = govExpanded) },
+                modifier = Modifier
+                  .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                  .fillMaxWidth()
+              )
+              ExposedDropdownMenu(
+                expanded = govExpanded,
+                onDismissRequest = { govExpanded = false }
+              ) {
+                distinctGovs.forEach { g ->
+                  DropdownMenuItem(
+                    text = { Text(g) },
+                    onClick = {
+                      capGov = g
+                      govExpanded = false
+                      val newDist = areas.filter { it.governorate.trim() == g.trim() }.map { it.district.trim() }.distinct()
+                      capDist = newDist.firstOrNull() ?: ""
+                    }
+                  )
+                }
+              }
+            }
+
+            // District Dropdown
+            ExposedDropdownMenuBox(
+              expanded = distExpanded,
+              onExpandedChange = { distExpanded = it },
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              OutlinedTextField(
+                value = capDist,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("القسم / الحي / المنطقة *") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = distExpanded) },
+                modifier = Modifier
+                  .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                  .fillMaxWidth()
+              )
+              ExposedDropdownMenu(
+                expanded = distExpanded,
+                onDismissRequest = { distExpanded = false }
+              ) {
+                districtsForGov.forEach { d ->
+                  DropdownMenuItem(
+                    text = { Text(d) },
+                    onClick = {
+                      capDist = d
+                      distExpanded = false
+                    }
+                  )
+                }
+              }
+            }
+          }
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            if (capName.isNotBlank() && capPhone.isNotBlank() && capPassword.isNotBlank() && capGov.isNotBlank() && capDist.isNotBlank()) {
+              showAddCaptainDialog = false
+              viewModel.addCaptain(
+                name = capName,
+                phone = capPhone,
+                password = capPassword,
+                governorate = capGov,
+                district = capDist,
+                onSuccess = { createdCap ->
+                  val credsMsg = """
+👋 مرحباً كابتن ${createdCap.name}،
+تم تسجيلك واعتمادك ككابتن ومندوب توصيل رسمي في تطبيق *البقال* بنطاق:
+📍 ${createdCap.governorate} - ${createdCap.district}
+
+🔑 *بيانات تسجيل الدخول لتطبيق البقال:*
+• رقم الهاتف: ${createdCap.phone}
+• كلمة المرور: ${createdCap.password}
+
+📲 *رابط تحميل التطبيق المباشر (APK):*
+${appSettings.apkDownloadUrl}
+                  """.trimIndent()
+                  openWhatsApp(context, createdCap.phone, credsMsg)
+                }
+              )
+            } else {
+              viewModel.showMessage("يرجى إكمال جميع بيانات الكابتن وتحديد المحافظة والمنطقة")
+            }
+          },
+          colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary)
+        ) {
+          Text("حفظ وإرسال الدخول للواتساب")
+        }
+      },
+      dismissButton = {
+        OutlinedButton(onClick = { showAddCaptainDialog = false }) { Text("إلغاء") }
+      }
+    )
   }
 }
 

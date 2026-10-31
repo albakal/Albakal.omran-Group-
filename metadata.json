@@ -1,6 +1,6 @@
 {
-  "name": "مجموعة عمران - Omran Group",
-  "description": "الموقع الرسمي لمجموعة عمران وتطبيقاتها الذكية للتجارة ونقاط البيع للتجار والعملاء مع لوحة تحكم ودعم فني ذكي.",
+  "name": "البقال",
+  "description": "منصة وتطبيق متكامل لربط العملاء بالتجار وإدارة متجر البقالة والطلبات والمديونيات ولوحة الإدارة",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

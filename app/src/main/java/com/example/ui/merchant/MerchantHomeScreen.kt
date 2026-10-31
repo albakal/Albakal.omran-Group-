@@ -57,6 +57,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.DeliveryDining
+import androidx.compose.material.icons.filled.Share
+import com.example.ui.common.openWhatsApp
+import com.example.ui.common.dialPhone
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -161,6 +167,12 @@ fun MerchantHomeScreen(viewModel: AlbakalViewModel) {
     }
   }
 
+  LaunchedEffect(appSettings?.isCaptainsFleetInterfaceActive) {
+    if (appSettings?.isCaptainsFleetInterfaceActive != true && selectedTab == 5) {
+      selectedTab = 0
+    }
+  }
+
   Scaffold(
     topBar = {
       AlbakalTopBar(
@@ -174,6 +186,7 @@ fun MerchantHomeScreen(viewModel: AlbakalViewModel) {
     bottomBar = {
       MerchantBottomNav(
         selectedTab = selectedTab,
+        isFleetActive = appSettings?.isCaptainsFleetInterfaceActive == true,
         onTabSelected = { selectedTab = it }
       )
     },
@@ -225,8 +238,9 @@ fun MerchantHomeScreen(viewModel: AlbakalViewModel) {
         0 -> MerchantProductsTab(viewModel)
         1 -> MerchantOrdersTab(viewModel)
         2 -> MerchantDebtAndFinancialsTab(viewModel)
-        3 -> MerchantProfileTab(viewModel)
+        3 -> MerchantProfileTab(viewModel, onNavigateToCaptains = { selectedTab = 5 })
         4 -> AnnouncementsAndUpdatesView(viewModel, "MERCHANT")
+        5 -> if (appSettings?.isCaptainsFleetInterfaceActive == true) MerchantCaptainsTab(viewModel) else MerchantProductsTab(viewModel)
       }
     }
   }
@@ -252,6 +266,7 @@ fun MerchantHomeScreen(viewModel: AlbakalViewModel) {
 @Composable
 private fun MerchantBottomNav(
   selectedTab: Int,
+  isFleetActive: Boolean = false,
   onTabSelected: (Int) -> Unit
 ) {
   NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
@@ -271,6 +286,16 @@ private fun MerchantBottomNav(
       colors = NavigationBarItemDefaults.colors(selectedIconColor = GreenPrimary),
       modifier = Modifier.testTag("m_tab_orders")
     )
+    if (isFleetActive) {
+      NavigationBarItem(
+        selected = selectedTab == 5,
+        onClick = { onTabSelected(5) },
+        icon = { Icon(Icons.Default.DeliveryDining, contentDescription = "الكباتن") },
+        label = { Text("الكباتن", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+        colors = NavigationBarItemDefaults.colors(selectedIconColor = GreenPrimary),
+        modifier = Modifier.testTag("m_tab_captains")
+      )
+    }
     NavigationBarItem(
       selected = selectedTab == 2,
       onClick = { onTabSelected(2) },
@@ -407,7 +432,7 @@ private fun MerchantOrdersTab(viewModel: AlbakalViewModel) {
   val orders by viewModel.allOrders.collectAsState()
   val currentUser by viewModel.currentUser.collectAsState()
 
-  var selectedOrderIdForShipping by remember { mutableStateOf<String?>(null) }
+  var selectedOrderForShipping by remember { mutableStateOf<OrderEntity?>(null) }
   var selectedOrderForPreparation by remember { mutableStateOf<OrderEntity?>(null) }
   var orderToConfirmDelivered by remember { mutableStateOf<OrderEntity?>(null) }
 
@@ -674,7 +699,7 @@ private fun MerchantOrdersTab(viewModel: AlbakalViewModel) {
             order = order,
             viewModel = viewModel,
             onOpenPreparation = { selectedOrderForPreparation = order },
-            onOpenShipping = { selectedOrderIdForShipping = order.id },
+            onOpenShipping = { selectedOrderForShipping = order },
             onConfirmDelivered = { orderToConfirmDelivered = order }
           )
         }
@@ -692,23 +717,22 @@ private fun MerchantOrdersTab(viewModel: AlbakalViewModel) {
         selectedOrderForPreparation = null
       },
       onShipOrder = { selectedItemIds ->
-        val oId = selectedOrderForPreparation!!.id
-        viewModel.updatePreparedOrder(oId, selectedItemIds)
-        selectedOrderForPreparation = null
-        selectedOrderIdForShipping = oId
+        val o = selectedOrderForPreparation
+        if (o != null) {
+          viewModel.updatePreparedOrder(o.id, selectedItemIds)
+          selectedOrderForPreparation = null
+          selectedOrderForShipping = o
+        }
       },
       onDismiss = { selectedOrderForPreparation = null }
     )
   }
 
-  if (selectedOrderIdForShipping != null) {
+  if (selectedOrderForShipping != null) {
     CaptainDataDialog(
-      orderId = selectedOrderIdForShipping!!,
-      onConfirm = { captainName, captainPhone ->
-        viewModel.shipOrder(selectedOrderIdForShipping!!, captainName, captainPhone)
-        selectedOrderIdForShipping = null
-      },
-      onDismiss = { selectedOrderIdForShipping = null }
+      order = selectedOrderForShipping!!,
+      viewModel = viewModel,
+      onDismiss = { selectedOrderForShipping = null }
     )
   }
 
@@ -1217,55 +1241,169 @@ private fun OrderPreparationDialog(
   )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CaptainDataDialog(
-  orderId: String,
-  onConfirm: (String, String) -> Unit,
+  order: OrderEntity,
+  viewModel: AlbakalViewModel,
   onDismiss: () -> Unit
 ) {
+  val allUsers by viewModel.allUsers.collectAsState()
+  val currentUser by viewModel.currentUser.collectAsState()
+  val appSettings by viewModel.appSettings.collectAsState()
+  val orderItems by viewModel.getOrderItems(order.id).collectAsState(initial = emptyList())
+  val context = LocalContext.current
+
+  val localCaptains = remember(allUsers, currentUser) {
+    allUsers.filter { it.role == "CAPTAIN" && it.district.trim().equals(currentUser?.district?.trim() ?: "", ignoreCase = true) }
+  }
+
   var captainName by remember { mutableStateOf("") }
   var captainPhone by remember { mutableStateOf("") }
 
   AlertDialog(
     onDismissRequest = onDismiss,
-    title = { Text("بيانات مندوب التوصيل (الكابتن)", fontWeight = FontWeight.Bold) },
+    title = {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.DeliveryDining, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("بيانات مندوب التوصيل (الكابتن)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+      }
+    },
     text = {
-      Column {
-        Text("أدخل اسم ورقم هاتف المندوب ليتمكن العميل من متابعته:", fontSize = 12.sp)
-        Spacer(modifier = Modifier.height(10.dp))
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        Text(
+          text = "اختر كابتن من منطقتك أو أدخل اسم وهاتف المندوب يدوياً؛ وسيتم إرسال تفاصيل الطرد كاملة لواتساب الكابتن فور التأكيد:",
+          fontSize = 12.sp,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // Show local captains chips if fleet feature is active
+        if (appSettings.isCaptainsFleetInterfaceActive && localCaptains.isNotEmpty()) {
+          Text(
+            text = "الكباتن المتاحين في منطقتك (${currentUser?.district}):",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = GreenDark
+          )
+          LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            items(localCaptains) { cap ->
+              val isSelected = captainPhone == cap.phone
+              Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isSelected) GreenPrimary else Color(0xFFF1F8E9),
+                border = BorderStroke(1.dp, if (isSelected) GreenDark else Color(0xFFC8E6C9)),
+                modifier = Modifier.clickable {
+                  captainName = cap.name
+                  captainPhone = cap.phone
+                }
+              ) {
+                Row(
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Text("🛵", fontSize = 14.sp)
+                  Spacer(modifier = Modifier.width(4.dp))
+                  Text(
+                    text = cap.name,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) Color.White else GreenDark
+                  )
+                }
+              }
+            }
+          }
+        }
+
         OutlinedTextField(
           value = captainName,
           onValueChange = { captainName = it },
-          label = { Text("اسم الكابتن") },
+          label = { Text("اسم الكابتن *") },
           singleLine = true,
           modifier = Modifier
             .fillMaxWidth()
             .testTag("captain_name_input")
         )
-        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
           value = captainPhone,
           onValueChange = { captainPhone = it },
-          label = { Text("رقم هاتف الكابتن") },
+          label = { Text("رقم هاتف الكابتن (لإرسال بيانات الطرد للواتساب) *") },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
           singleLine = true,
           modifier = Modifier
             .fillMaxWidth()
             .testTag("captain_phone_input")
         )
+
+        Card(
+          shape = RoundedCornerShape(8.dp),
+          colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(Icons.Default.Share, contentDescription = null, tint = GreenDark, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = "فور الضغط على تأكيد، سيتم تحويلك لواتساب الكابتن برسالة تشمل اسم العميل ورقمه وعنوانه والسلع والسعر شاملاً الشحن.",
+              fontSize = 11.sp,
+              color = GreenDark
+            )
+          }
+        }
       }
     },
     confirmButton = {
       Button(
         onClick = {
           if (captainName.isNotBlank() && captainPhone.isNotBlank()) {
-            onConfirm(captainName, captainPhone)
+            viewModel.shipOrder(order.id, captainName.trim(), captainPhone.trim())
+
+            val itemsSummary = if (orderItems.isNotEmpty()) {
+              orderItems.joinToString("\n") { "• ${it.productName} (${it.quantity} ${it.unit}) - ${it.totalPrice} ج.م" }
+            } else {
+              "• تفاصيل السلع متوفرة في الأوردر"
+            }
+
+            val parcelMsg = """
+📦 *تفاصيل طرد توصيل طلبية البقال*
+📋 *رقم الطلب:* #${order.orderNumber}
+────────────────
+👤 *اسم العميل:* ${order.customerName}
+📞 *هاتف العميل:* ${order.customerPhone}
+📍 *عنوان العميل بالتفصيل:* ${order.customerAddress}
+────────────────
+🛍️ *محتويات ومواصفات السلع:*
+$itemsSummary
+────────────────
+💵 *إجمالي المبلغ المطلوب تحصيله (شامل الشحن):* ${order.grandTotal} ج.م
+🏪 *التاجر:* ${currentUser?.name ?: "البقال"} (${currentUser?.district ?: ""})
+────────────────
+🛵 يرجى التوجه لموقع المتجر لاستلام الطرد وتوصيله للعميل.
+            """.trimIndent()
+
+            openWhatsApp(context, captainPhone.trim(), parcelMsg)
+            onDismiss()
+          } else {
+            viewModel.showMessage("يرجى إدخال اسم ورقم هاتف الكابتن")
           }
         },
         colors = ButtonDefaults.buttonColors(containerColor = GreenPrimary),
         modifier = Modifier.testTag("confirm_captain_btn")
       ) {
-        Text("تأكيد إرسال الطلب")
+        Text("تأكيد وإرسال الطرد للواتساب")
       }
     },
     dismissButton = {
@@ -1672,7 +1810,10 @@ private fun RepayDebtDialog(
 
 // 4. MERCHANT PROFILE TAB
 @Composable
-private fun MerchantProfileTab(viewModel: AlbakalViewModel) {
+private fun MerchantProfileTab(
+  viewModel: AlbakalViewModel,
+  onNavigateToCaptains: () -> Unit = {}
+) {
   val context = LocalContext.current
   val currentUser by viewModel.currentUser.collectAsState()
   val settings by viewModel.appSettings.collectAsState()
@@ -1723,6 +1864,45 @@ private fun MerchantProfileTab(viewModel: AlbakalViewModel) {
             ProfileRow(label = "رقم الهاتف", value = user.phone)
             ProfileRow(label = "المحافظة والحي", value = "${user.governorate} - ${user.district}")
             ProfileRow(label = "العنوان التجاري", value = "${user.street} - ${user.apartment}")
+          }
+        }
+      }
+
+      // Captains Quick Navigation Banner (if enabled by admin)
+      if (settings.isCaptainsFleetInterfaceActive) {
+        item {
+          Card(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { onNavigateToCaptains() }
+              .testTag("merchant_profile_captains_card"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = GreenPrimary.copy(alpha = 0.08f)),
+            border = BorderStroke(1.dp, GreenPrimary.copy(alpha = 0.3f))
+          ) {
+            Row(
+              modifier = Modifier.padding(14.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                  modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(GreenPrimary),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Icon(Icons.Default.DeliveryDining, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                  Text("كباتن التوصيل في منطقتك 🛵", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = GreenDark)
+                  Text("استعراض المناديب المتاحين والتواصل معهم فوراً", fontSize = 11.sp, color = Color.Gray)
+                }
+              }
+              Text("عرض ◄", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GreenPrimary)
+            }
           }
         }
       }
@@ -2037,6 +2217,7 @@ private fun MerchantProfileTab(viewModel: AlbakalViewModel) {
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditMerchantHoursDialog(
   currentUser: com.example.data.model.UserEntity,
@@ -2064,7 +2245,7 @@ private fun EditMerchantHoursDialog(
         modifier = Modifier
           .fillMaxWidth()
           .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
       ) {
         Text(
           text = "اختر مواعيد عمل المتجر الرسمية (تُحسب بتوقيت مصر وتختفي المنتجات تلقائياً وقت الإغلاق):",
@@ -2072,25 +2253,36 @@ private fun EditMerchantHoursDialog(
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Box(modifier = Modifier.fillMaxWidth()) {
+        // ExposedDropdownMenuBox ensures options open and show properly on click
+        ExposedDropdownMenuBox(
+          expanded = dropdownExpanded,
+          onExpandedChange = { dropdownExpanded = it },
+          modifier = Modifier.fillMaxWidth()
+        ) {
           OutlinedTextField(
             value = selectedDisplayLabel,
             onValueChange = {},
             readOnly = true,
             label = { Text("مواعيد العمل *") },
-            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
             modifier = Modifier
+              .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
               .fillMaxWidth()
-              .clickable { dropdownExpanded = true }
+              .testTag("edit_hours_preset_dropdown")
           )
-          DropdownMenu(
+          ExposedDropdownMenu(
             expanded = dropdownExpanded,
-            onDismissRequest = { dropdownExpanded = false },
-            modifier = Modifier.fillMaxWidth(0.85f)
+            onDismissRequest = { dropdownExpanded = false }
           ) {
             hoursPresets.forEach { preset ->
               DropdownMenuItem(
-                text = { Text(preset.label, fontSize = 12.sp, fontWeight = if (selectedType == preset.type) FontWeight.Bold else FontWeight.Normal) },
+                text = {
+                  Text(
+                    preset.label,
+                    fontSize = 12.sp,
+                    fontWeight = if (selectedType == preset.type) FontWeight.Bold else FontWeight.Normal
+                  )
+                },
                 onClick = {
                   selectedType = preset.type
                   dropdownExpanded = false
@@ -2106,31 +2298,49 @@ private fun EditMerchantHoursDialog(
           Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(modifier = Modifier.weight(1f)) {
               val startLbl = time24List.firstOrNull { it.first == customStart }?.second ?: customStart
-              OutlinedTextField(
-                value = startLbl,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("من الساعة") },
-                modifier = Modifier.fillMaxWidth().clickable { startExpanded = true }
-              )
-              DropdownMenu(expanded = startExpanded, onDismissRequest = { startExpanded = false }) {
-                time24List.forEach { (v, l) ->
-                  DropdownMenuItem(text = { Text(l, fontSize = 11.sp) }, onClick = { customStart = v; startExpanded = false })
+              ExposedDropdownMenuBox(
+                expanded = startExpanded,
+                onExpandedChange = { startExpanded = it },
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                OutlinedTextField(
+                  value = startLbl,
+                  onValueChange = {},
+                  readOnly = true,
+                  label = { Text("من الساعة") },
+                  trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = startExpanded) },
+                  modifier = Modifier
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                    .fillMaxWidth()
+                )
+                ExposedDropdownMenu(expanded = startExpanded, onDismissRequest = { startExpanded = false }) {
+                  time24List.forEach { (v, l) ->
+                    DropdownMenuItem(text = { Text(l, fontSize = 11.sp) }, onClick = { customStart = v; startExpanded = false })
+                  }
                 }
               }
             }
             Box(modifier = Modifier.weight(1f)) {
               val endLbl = time24List.firstOrNull { it.first == customEnd }?.second ?: customEnd
-              OutlinedTextField(
-                value = endLbl,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("إلى الساعة") },
-                modifier = Modifier.fillMaxWidth().clickable { endExpanded = true }
-              )
-              DropdownMenu(expanded = endExpanded, onDismissRequest = { endExpanded = false }) {
-                time24List.forEach { (v, l) ->
-                  DropdownMenuItem(text = { Text(l, fontSize = 11.sp) }, onClick = { customEnd = v; endExpanded = false })
+              ExposedDropdownMenuBox(
+                expanded = endExpanded,
+                onExpandedChange = { endExpanded = it },
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                OutlinedTextField(
+                  value = endLbl,
+                  onValueChange = {},
+                  readOnly = true,
+                  label = { Text("إلى الساعة") },
+                  trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = endExpanded) },
+                  modifier = Modifier
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true)
+                    .fillMaxWidth()
+                )
+                ExposedDropdownMenu(expanded = endExpanded, onDismissRequest = { endExpanded = false }) {
+                  time24List.forEach { (v, l) ->
+                    DropdownMenuItem(text = { Text(l, fontSize = 11.sp) }, onClick = { customEnd = v; endExpanded = false })
+                  }
                 }
               }
             }
@@ -2386,3 +2596,166 @@ private fun MerchantAddProductDialog(
     }
   )
 }
+
+// 5. MERCHANT CAPTAINS TAB (Visible when Captains fleet is active)
+@Composable
+private fun MerchantCaptainsTab(viewModel: AlbakalViewModel) {
+  val allUsers by viewModel.allUsers.collectAsState()
+  val currentUser by viewModel.currentUser.collectAsState()
+  val context = LocalContext.current
+
+  val localCaptains = remember(allUsers, currentUser) {
+    allUsers.filter { it.role == "CAPTAIN" && it.district.trim().equals(currentUser?.district?.trim() ?: "", ignoreCase = true) }
+  }
+
+  LazyColumn(
+    modifier = Modifier
+      .fillMaxSize()
+      .padding(14.dp),
+    verticalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    item {
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = GreenPrimary.copy(alpha = 0.08f)),
+        border = BorderStroke(1.dp, GreenPrimary.copy(alpha = 0.25f))
+      ) {
+        Row(
+          modifier = Modifier.padding(12.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Icon(Icons.Default.DeliveryDining, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(26.dp))
+          Spacer(modifier = Modifier.width(10.dp))
+          Column {
+            Text(
+              text = "كباتن التوصيل في منطقتك (${localCaptains.size})",
+              fontWeight = FontWeight.Bold,
+              fontSize = 14.sp,
+              color = GreenDark
+            )
+            Text(
+              text = "يتم إظهار الكباتن المعتمدين والمتاحين في نطاق (${currentUser?.governorate ?: ""} - ${currentUser?.district ?: ""}) فقط",
+              fontSize = 11.sp,
+              color = Color.DarkGray
+            )
+          }
+        }
+      }
+    }
+
+    if (localCaptains.isEmpty()) {
+      item {
+        Card(
+          modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+          shape = RoundedCornerShape(12.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+          ) {
+            Text("🛵", fontSize = 42.sp)
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+              text = "لا يوجد كباتن مسجلين في منطقتك حالياً",
+              fontWeight = FontWeight.Bold,
+              fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+              text = "تقوم الإدارة بإضافة وتعيين الكباتن حسب المناطق. يمكنك دائماً إدخال بيانات الكابتن الخاص بك يدوياً عند إرسال أي أوردر.",
+              fontSize = 12.sp,
+              color = Color.Gray,
+              textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+          }
+        }
+      }
+    }
+
+    items(localCaptains) { captain ->
+      Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+      ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Box(
+                modifier = Modifier
+                  .size(42.dp)
+                  .clip(CircleShape)
+                  .background(GreenPrimary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+              ) {
+                Text("🛵", fontSize = 20.sp)
+              }
+              Spacer(modifier = Modifier.width(10.dp))
+              Column {
+                Text(text = captain.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(text = "📞 ${captain.phone}", fontSize = 12.sp, color = Color.DarkGray)
+              }
+            }
+
+            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFE8F5E9)) {
+              Text(
+                text = "متاح للتوصيل",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = GreenDark,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+              )
+            }
+          }
+
+          Spacer(modifier = Modifier.height(8.dp))
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = GreenPrimary, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+              text = "نطاق التغطية: ${captain.governorate} - ${captain.district}",
+              fontSize = 12.sp,
+              color = Color.Gray
+            )
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            Button(
+              onClick = {
+                val greeting = "مرحباً كابتن ${captain.name}، معك متجر ${currentUser?.name ?: "البقال"} بخصوص طلبيات التوصيل المتاحة في منطقة ${captain.district}."
+                openWhatsApp(context, captain.phone, greeting)
+              },
+              colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+              shape = RoundedCornerShape(8.dp),
+              modifier = Modifier.weight(1f)
+            ) {
+              Text("محادثة واتساب 💬", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+
+            OutlinedButton(
+              onClick = { dialPhone(context, captain.phone) },
+              shape = RoundedCornerShape(8.dp),
+              modifier = Modifier.weight(1f)
+            ) {
+              Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp), tint = GreenPrimary)
+              Spacer(modifier = Modifier.width(4.dp))
+              Text("اتصال هاتفي", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

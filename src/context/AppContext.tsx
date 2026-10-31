@@ -120,26 +120,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const triggerApkDownload = () => {
-    // Generate a downloadable APK manifest file to guarantee a functional download action
-    const apkDummyContent = `Omran Group App Package Installer
-Application: ${config.appName}
-Version: ${config.appVersion}
-Group: ${config.groupName}
-Slogan: ${config.slogan}
-Official Site: Omran Group Web Portal
-Timestamp: ${new Date().toISOString()}
-
-Ready for Android Installation via Omran Group Distribution Network.`;
-    
-    const blob = new Blob([apkDummyContent], { type: 'application/vnd.android.package-archive' });
-    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `Omran-App-${config.appVersion.replace(/\s+/g, '-')}.apk`;
+    a.href = 'albakal.apk';
+    a.download = 'albakal.apk';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   return (

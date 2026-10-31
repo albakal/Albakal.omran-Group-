@@ -620,6 +620,45 @@ class AlbakalViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
+  fun addCaptain(
+    name: String,
+    phone: String,
+    password: String,
+    governorate: String,
+    district: String,
+    onSuccess: (UserEntity) -> Unit = {}
+  ) {
+    viewModelScope.launch {
+      val cleanPhone = com.example.util.PhoneHelper.cleanPhone(phone).ifBlank { phone.trim() }
+      val captain = UserEntity(
+        id = "cpt_" + java.util.UUID.randomUUID().toString().take(8),
+        name = name.trim(),
+        email = "$cleanPhone@captain.albakal.com",
+        phone = cleanPhone,
+        password = password.trim(),
+        role = "CAPTAIN",
+        status = "APPROVED",
+        governorate = governorate.trim(),
+        district = district.trim(),
+        street = "",
+        apartment = "",
+        floor = "",
+        workingHoursType = "ALL_DAY",
+        workingHoursDisplay = "متاح للتوصيل 24 ساعة"
+      )
+      repository.registerUser(captain)
+      showMessage("تم تسجيل الكابتن بنجاح في النظام")
+      onSuccess(captain)
+    }
+  }
+
+  fun deleteCaptain(captainId: String) {
+    viewModelScope.launch {
+      repository.deleteUser(captainId)
+      showMessage("تم حذف الكابتن بنجاح")
+    }
+  }
+
   fun getOrderItems(orderId: String): Flow<List<OrderItemEntity>> = repository.getOrderItems(orderId)
 
   fun approveDebtPayment(payment: DebtPaymentRequestEntity) {

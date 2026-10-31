@@ -368,7 +368,13 @@ private fun HonorItem(icon: ImageVector, text: String) {
 // Intent utilities for WhatsApp and Direct Calling
 fun openWhatsApp(context: Context, rawPhone: String, message: String = "") {
   try {
-    val cleanPhone = rawPhone.replace("+", "").replace(" ", "").replace("-", "")
+    val norm = com.example.util.PhoneHelper.normalizeDigits(rawPhone)
+    var cleanPhone = norm.replace("+", "").replace(" ", "").replace("-", "")
+    if (cleanPhone.startsWith("01") && cleanPhone.length == 11) {
+      cleanPhone = "2$cleanPhone"
+    } else if (cleanPhone.startsWith("00")) {
+      cleanPhone = cleanPhone.removePrefix("00")
+    }
     val url = "https://api.whatsapp.com/send?phone=$cleanPhone&text=${Uri.encode(message)}"
     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
       flags = Intent.FLAG_ACTIVITY_NEW_TASK
