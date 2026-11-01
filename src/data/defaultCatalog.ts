@@ -1,9 +1,13 @@
 import { AppItem, AppCategory } from '../types/store';
+import heroBanner from '../assets/images/store_hero_banner_1793558641758.jpg';
+import spaceGame from '../assets/images/game_space_odyssey_1793558641908.jpg';
+import productivityApp from '../assets/images/app_productivity_hub_1793558643035.jpg';
+import desertGame from '../assets/images/game_desert_drifter_1793558642874.jpg';
 
-export const HERO_BANNER_IMAGE = '/src/assets/images/store_hero_banner_1793558641758.jpg';
-export const GAME_SPACE_IMAGE = '/src/assets/images/game_space_odyssey_1793558641908.jpg';
-export const APP_PRODUCTIVITY_IMAGE = '/src/assets/images/app_productivity_hub_1793558643035.jpg';
-export const GAME_DESERT_IMAGE = '/src/assets/images/game_desert_drifter_1793558642874.jpg';
+export const HERO_BANNER_IMAGE = heroBanner;
+export const GAME_SPACE_IMAGE = spaceGame;
+export const APP_PRODUCTIVITY_IMAGE = productivityApp;
+export const GAME_DESERT_IMAGE = desertGame;
 
 export const DEFAULT_CATALOG: AppItem[] = [
   {
