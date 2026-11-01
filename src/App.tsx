@@ -61,14 +61,7 @@ export default function App() {
     if (stored) {
       setCurrentUser(stored);
     } else {
-      const defaultUser: UserProfile = {
-        name: 'المطور المعتمد',
-        email: 'developer@play.store',
-        isVerifiedDeveloper: true,
-        joinedDate: '2026-11-01'
-      };
-      setCurrentUser(defaultUser);
-      saveStoredUser(defaultUser);
+      setCurrentUser(null);
     }
 
     // Check for direct share links (?app=id or ?download=id)

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types/auth';
-import { X, ShieldCheck, Lock, Check } from 'lucide-react';
-import { playSuccessSound } from '../utils/audio';
+import { X, ShieldCheck, Mail, User, ArrowRight, Check } from 'lucide-react';
+import { playSuccessSound, playClickSound } from '../utils/audio';
 
 interface GoogleSignInModalProps {
   onClose: () => void;
@@ -14,18 +14,28 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({
   onSuccess,
   isArabic
 }) => {
-  const [developerName, setDeveloperName] = useState('المطور المعتمد');
-  const [developerPasscode, setDeveloperPasscode] = useState('');
+  // Completely empty input fields as requested by user
+  const [email, setEmail] = useState('');
+  const [developerName, setDeveloperName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleDevLogin = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setError(isArabic ? 'يرجى كتابة عنوان بريد Gmail صالح' : 'Please enter a valid Gmail address');
+      return;
+    }
+
     playSuccessSound();
+    const displayName = developerName.trim() || trimmedEmail.split('@')[0];
     const user: UserProfile = {
-      name: developerName.trim() || (isArabic ? 'المطور المعتمد' : 'Verified Developer'),
-      email: 'developer@play.store',
+      name: displayName,
+      email: trimmedEmail,
       isVerifiedDeveloper: true,
       joinedDate: new Date().toLocaleDateString('ar-SA')
     };
+
     onSuccess(user);
   };
 
@@ -33,7 +43,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
       <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden text-slate-900 dark:text-white p-6 sm:p-8">
         
-        {/* Close */}
+        {/* Close Button */}
         <button
           onClick={onClose}
           className="absolute top-4 left-4 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -41,7 +51,7 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        {/* Google G Logo & Play branding */}
+        {/* Google G Logo & Play Header */}
         <div className="text-center space-y-3 mb-6">
           <div className="w-12 h-12 mx-auto rounded-full bg-white shadow-md border border-slate-100 flex items-center justify-center">
             {/* Google G SVG */}
@@ -66,59 +76,68 @@ export const GoogleSignInModal: React.FC<GoogleSignInModalProps> = ({
           </div>
 
           <h2 className="text-xl font-bold tracking-tight">
-            {isArabic ? 'بوابة دخول المطورين الآمنة' : 'Secure Developer Portal'}
+            {isArabic ? 'تسجيل الدخول بحساب Google' : 'Sign in with Google'}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto">
             {isArabic
-              ? 'تسجيل دخول خاص ومحمي لإدارة ورفع التطبيقات والألعاب دون إظهار بيانات الدخول للجمهور.'
-              : 'Private login to manage and upload apps with protected credentials.'}
+              ? 'أدخل بريد Gmail الخاص بك أو اختر من الحسابات المسجلة على جهازك لتتمكن من رفع وإدارة التطبيقات في متجر Play.'
+              : 'Enter your Gmail or choose from registered accounts on your device to upload and manage apps on Play Store.'}
           </p>
         </div>
 
-        <form onSubmit={handleDevLogin} className="space-y-4">
+        {/* Clean, completely empty form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              {isArabic ? 'الاسم المعروض للمطور' : 'Display Name'}
+              {isArabic ? 'بريد Gmail الخاص بك *' : 'Your Gmail Address *'}
             </label>
-            <input
-              type="text"
-              value={developerName}
-              onChange={(e) => setDeveloperName(e.target.value)}
-              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            />
+            <div className="relative">
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="name@gmail.com"
+                className="w-full pl-3 pr-10 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+              />
+              <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+            </div>
+            {error && <p className="text-xs text-rose-500 mt-1">{error}</p>}
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              {isArabic ? 'رمز التحقق السري / كلمة المرور' : 'Security Passcode'}
+              {isArabic ? 'اسم المطور أو الاستوديو (اختياري)' : 'Developer / Studio Name (Optional)'}
             </label>
             <div className="relative">
               <input
-                type="password"
-                value={developerPasscode}
-                onChange={(e) => setDeveloperPasscode(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                type="text"
+                autoComplete="name"
+                value={developerName}
+                onChange={(e) => setDeveloperName(e.target.value)}
+                placeholder={isArabic ? 'مثال: مطور ألعاب، ستوديو التطبيقات...' : 'e.g. Apex Apps'}
+                className="w-full pl-3 pr-10 py-2.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
-              <Lock className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <User className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              {isArabic ? 'بيانات الاعتماد مشفرة ومحمية بالكامل.' : 'Credentials are encrypted and kept private.'}
-            </p>
           </div>
 
           <button
             type="submit"
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 active:scale-98 transition-all cursor-pointer flex items-center justify-center gap-2 mt-2"
           >
             <Check className="w-4 h-4" />
-            <span>{isArabic ? 'دخول لوحة تحكم المطورين' : 'Enter Developer Console'}</span>
+            <span>{isArabic ? 'تسجيل الدخول ومتابعة الرفع' : 'Sign In & Continue'}</span>
           </button>
         </form>
 
         <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-[11px] text-slate-400 text-center flex items-center justify-center gap-1">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-          <span>{isArabic ? 'حماية مشفرة 100% - البيانات غير معلنة' : 'Protected Developer Session'}</span>
+          <span>{isArabic ? 'تسجيل دخول آمن ومعتمد لدى متجر Play' : 'Secured Google Play Authentication'}</span>
         </div>
       </div>
     </div>
