@@ -57,8 +57,8 @@ export const HeroSpotlight: React.FC<HeroSpotlightProps> = ({
 
         <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed">
           {isArabic
-            ? 'المنصة المفتوحة لتحميل وتجربة وتثبيت التطبيقات والألعاب. سجل دخولك بحساب Google (Gmail) الخاص بك وارفع تطبيقاتك مع استخراج تلقائي للأيقونات والصور لتبدأ بالانتشار فوراً.'
-            : 'Explore, play and download Android and web applications. Sign in with your Gmail account to upload apps with automatic icon and screenshot extraction!'}
+            ? 'المنصة المفتوحة لتحميل وتجربة وتثبيت التطبيقات والألعاب. يمكنك رفع تطبيقاتك وألعابك بكل سهولة مع استخراج تلقائي للأيقونات والصور ومشاركة روابط التحميل المباشرة مع الجميع.'
+            : 'Explore, play and download Android and web applications. Upload your own apps with automatic icon and screenshot extraction and share direct download links with anyone!'}
         </p>
 
         {/* Action buttons */}

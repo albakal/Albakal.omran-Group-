@@ -130,7 +130,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Zone 3: Primary Action + Google User Account */}
+          {/* Zone 3: Primary Action + Discreet Developer Account */}
           <div className="flex items-center gap-3 shrink-0">
             <button
               onClick={onToggleLanguage}
@@ -147,31 +147,43 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
-            {/* Google Account Profile or Sign In Button */}
+            {/* Discreet Developer Account (Email is completely hidden) */}
             {currentUser ? (
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 p-1 pl-2.5 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:border-emerald-500 transition-colors"
+                  className="flex items-center gap-1.5 p-1.5 px-3 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:border-emerald-500 transition-colors"
                 >
-                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
-                    {currentUser.name.charAt(0)}
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
+                    <User className="w-3.5 h-3.5" />
                   </div>
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300 max-w-[100px] truncate hidden sm:block">
-                    {currentUser.email.split('@')[0]}
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 hidden sm:block">
+                    {isArabic ? 'لوحة المطور' : 'Dev Console'}
                   </span>
                 </button>
 
                 {showUserMenu && (
-                  <div className="absolute left-0 mt-2 w-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-3 z-50 text-xs space-y-2">
+                  <div className="absolute left-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-3 z-50 text-xs space-y-2">
                     <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60">
-                      <div className="font-bold text-slate-900 dark:text-white truncate">{currentUser.name}</div>
-                      <div className="text-[11px] text-slate-500 truncate font-mono">{currentUser.email}</div>
-                      <div className="text-[10px] text-emerald-500 flex items-center gap-1 mt-1 font-semibold">
-                        <ShieldCheck className="w-3 h-3" />
-                        <span>مطور معتمد في متجر Play</span>
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>{currentUser.name}</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
+                        {isArabic ? 'حساب مطور معتمد' : 'Verified Developer'}
                       </div>
                     </div>
+
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        onSelectTab('my-apps');
+                      }}
+                      className="w-full flex items-center gap-2 p-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-start"
+                    >
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      <span>{isArabic ? 'إدارة تطبيقاتي' : 'Manage My Apps'}</span>
+                    </button>
 
                     <button
                       onClick={() => {
@@ -181,7 +193,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       className="w-full flex items-center gap-2 p-2 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors text-start"
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      <span>{isArabic ? 'تسجيل الخروج من Google' : 'Sign Out'}</span>
+                      <span>{isArabic ? 'تسجيل الخروج' : 'Sign Out'}</span>
                     </button>
                   </div>
                 )}
@@ -195,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors"
               >
                 <LogIn className="w-3.5 h-3.5 text-emerald-500" />
-                <span>{isArabic ? 'دخول بحساب Google' : 'Sign in'}</span>
+                <span>{isArabic ? 'دخول المطورين' : 'Dev Login'}</span>
               </button>
             )}
 

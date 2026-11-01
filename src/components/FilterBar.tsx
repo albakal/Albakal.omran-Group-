@@ -40,40 +40,45 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   return (
     <div className="space-y-4 my-6">
-      {/* Search & Sort Row */}
+      {/* Search Lens & Query Input Box */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Search Input */}
-        <div className="relative flex-1">
-          <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        {/* Prominent Search Lens (عدسة بحث على التطبيقات بالاسم) */}
+        <div className="relative flex-1 group">
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none text-emerald-500">
+            <Search className="w-5 h-5 group-focus-within:scale-110 transition-transform" />
+          </div>
+
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={
               isArabic
-                ? 'ابحث بالاسم، المطور، التصنيف، أو الكلمات المفتاحية...'
-                : 'Search apps, games, developers, keywords...'
+                ? '🔍 ابحث عن التطبيقات والألعاب بالاسم...'
+                : '🔍 Search apps and games by name...'
             }
-            className="w-full pr-10 pl-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
+            className="w-full pr-11 pl-10 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-sm font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-xs transition-all"
           />
+
           {searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={isArabic ? 'مسح البحث' : 'Clear search'}
             >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Segmented Type Control (Functional button tabs) */}
+        {/* Segmented Type Control */}
         <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
           <button
             onClick={() => {
               playClickSound();
               onSelectType('all');
             }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
               selectedType === 'all'
                 ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -87,7 +92,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               playClickSound();
               onSelectType('app');
             }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
               selectedType === 'app'
                 ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -101,7 +106,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               playClickSound();
               onSelectType('game');
             }}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+            className={`px-3 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
               selectedType === 'game'
                 ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -120,7 +125,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               playClickSound();
               onSortChange(e.target.value as SortOption);
             }}
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            className="px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
             <option value="popular">{isArabic ? 'الأكثر تحميلاً' : 'Most Popular'}</option>
             <option value="rating">{isArabic ? 'الأعلى تقييماً' : 'Highest Rated'}</option>
@@ -154,7 +159,15 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Result counter & clear filter trigger */}
       <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
         <div>
-          {isArabic ? 'تم العثور على ' : 'Found '}
+          {searchQuery ? (
+            <span>
+              {isArabic ? 'نتائج البحث عن بالاسم "' : 'Search results for "'}
+              <span className="font-bold text-emerald-500">{searchQuery}</span>
+              {'" : '}
+            </span>
+          ) : (
+            <span>{isArabic ? 'المعروض حالياً: ' : 'Showing: '}</span>
+          )}
           <span className="font-bold text-slate-900 dark:text-white font-mono tabular-nums">
             {totalFilteredCount}
           </span>

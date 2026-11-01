@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { AppItem, StoreTab, AppType, AppCategory, SortOption, AppReview } from './types/store';
-import { UserProfile, getStoredUser, saveStoredUser, DEFAULT_USER_EMAIL } from './types/auth';
+import { UserProfile, getStoredUser, saveStoredUser } from './types/auth';
 import {
   getStoredCatalog,
   addAppToCatalog,
@@ -52,23 +52,45 @@ export default function App() {
   const [isArabic, setIsArabic] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Initialize data on mount
+  // Initialize data and handle deep links on mount
   useEffect(() => {
-    setCatalog(getStoredCatalog());
+    const loadedCatalog = getStoredCatalog();
+    setCatalog(loadedCatalog);
     setFavorites(getFavorites());
     const stored = getStoredUser();
     if (stored) {
       setCurrentUser(stored);
     } else {
-      // Default initial session with user's Gmail
       const defaultUser: UserProfile = {
-        name: 'محمد للتطوير',
-        email: DEFAULT_USER_EMAIL,
+        name: 'المطور المعتمد',
+        email: 'developer@play.store',
         isVerifiedDeveloper: true,
         joinedDate: '2026-11-01'
       };
       setCurrentUser(defaultUser);
       saveStoredUser(defaultUser);
+    }
+
+    // Check for direct share links (?app=id or ?download=id)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const targetAppId = params.get('app');
+      const targetDownloadId = params.get('download');
+
+      if (targetAppId) {
+        const found = loadedCatalog.find(a => a.id === targetAppId);
+        if (found) {
+          setActiveDetailApp(found);
+        }
+      } else if (targetDownloadId) {
+        const found = loadedCatalog.find(a => a.id === targetDownloadId);
+        if (found) {
+          setActiveDetailApp(found);
+          handleDownloadApp(found);
+        }
+      }
+    } catch {
+      // Ignore
     }
   }, []);
 

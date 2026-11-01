@@ -252,6 +252,22 @@ export const AppDetailModal: React.FC<AppDetailModalProps> = ({
               <span>{isArabic ? 'تجربة فورية في المتصفح' : 'Instant Web Play'}</span>
             </button>
           )}
+
+          {/* Copy Direct Download Link */}
+          <button
+            onClick={() => {
+              playClickSound();
+              const dlUrl = app.downloadUrl || `${window.location.origin}${window.location.pathname}?download=${app.id}`;
+              navigator.clipboard?.writeText(dlUrl);
+              setCopiedLink(true);
+              setTimeout(() => setCopiedLink(false), 2500);
+            }}
+            className="flex items-center gap-2 py-3 px-4 rounded-xl font-bold text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-950/60 border border-emerald-500/30 transition-all cursor-pointer"
+            title={isArabic ? 'نسخ رابط التحميل المباشر لإرساله لأي شخص' : 'Copy Direct Download Link'}
+          >
+            {copiedLink ? <Check className="w-4 h-4 text-emerald-500" /> : <Share2 className="w-4 h-4" />}
+            <span>{copiedLink ? (isArabic ? 'تم نسخ الرابط!' : 'Link Copied!') : (isArabic ? 'نسخ رابط التحميل' : 'Copy Download Link')}</span>
+          </button>
         </div>
 
         {/* Screenshots Carousel */}

@@ -1,14 +1,11 @@
 export interface UserProfile {
   name: string;
   email: string;
-  photoUrl?: string;
   isVerifiedDeveloper: boolean;
   joinedDate: string;
 }
 
-const AUTH_KEY = 'play_store_user_v1';
-
-export const DEFAULT_USER_EMAIL = 'modm55085@gmail.com';
+const AUTH_KEY = 'play_store_dev_auth_v2';
 
 export function getStoredUser(): UserProfile | null {
   try {

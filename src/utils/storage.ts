@@ -1,9 +1,9 @@
 import { AppItem, AppReview } from '../types/store';
 import { DEFAULT_CATALOG } from '../data/defaultCatalog';
 
-const STORAGE_KEY = 'orbit_store_catalog_v1';
-const FAVORITES_KEY = 'orbit_store_favorites_v1';
-const DOWNLOADS_KEY = 'orbit_store_downloads_v1';
+const STORAGE_KEY = 'play_store_catalog_v2_clean';
+const FAVORITES_KEY = 'play_store_favorites_v2';
+const DOWNLOADS_KEY = 'play_store_downloads_v2';
 
 export function getStoredCatalog(): AppItem[] {
   try {
@@ -124,7 +124,7 @@ export function exportCatalogJson(catalog: AppItem[]) {
   const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(catalog, null, 2));
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute('href', dataStr);
-  downloadAnchor.setAttribute('download', `orbit_store_catalog_${Date.now()}.json`);
+  downloadAnchor.setAttribute('download', `play_store_catalog_${Date.now()}.json`);
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
